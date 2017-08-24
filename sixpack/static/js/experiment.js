@@ -39,79 +39,90 @@ $(function () {
       return n;
     };
 
-    my.getData(function (data) {
+    my.render = function() {
+      my.getData(function (data) {
+        my.el.empty();
+        data = my.renderBoxplots(data);
 
-      data = my.renderBoxplots(data);
+        // Format the rest of the data
+        _.each(data.alternatives, function (alt, k) {
+          data.alternatives[k].participant_count   = my.addCommas(alt.participant_count);
+          data.alternatives[k].completed_count     = my.addCommas(alt.completed_count);
+          data.alternatives[k].conversion_rate     = alt.conversion_rate.toFixed(2) + '%';
+          data.alternatives[k].confidence_interval = alt.confidence_interval.toFixed(1) + '%';
+          data.alternatives[k].confidence_level    = alt.confidence_level.replace('N/A', '&mdash;');
+        });
 
-      // Format the rest of the data
-      _.each(data.alternatives, function (alt, k) {
-        data.alternatives[k].participant_count   = my.addCommas(alt.participant_count);
-        data.alternatives[k].completed_count     = my.addCommas(alt.completed_count);
-        data.alternatives[k].conversion_rate     = alt.conversion_rate.toFixed(2) + '%';
-        data.alternatives[k].confidence_interval = alt.confidence_interval.toFixed(1) + '%';
-        data.alternatives[k].confidence_level    = alt.confidence_level.replace('N/A', '&mdash;');
-      });
+        my.el.append(my.template(data));
 
-      my.el.append(my.template(data));
+        $("li[data-name='" + my.codedName + "'] tr").on({
+          mouseover: function () {
+            var alt_name = $(this).attr('class');
+            if (!alt_name) return;
 
-      $("li[data-name='" + my.codedName + "'] tr").on({
-        mouseover: function () {
-          var alt_name = $(this).attr('class');
-          if (!alt_name) return;
+            $(this).addClass('highlight');
 
-          $(this).addClass('highlight');
+            var line = d3.select("#" + alt_name);
 
-          var line = d3.select("#" + alt_name);
+            // if statement to prevent a bug where an error is thrown when
+            // mouseout'ing from a zeroclipboard button
+            if (line[0][0]) {
+              var id = line.attr('id');
+              var el = d3.select('#' + id)[0][0];
 
-          // if statement to prevent a bug where an error is thrown when
-          // mouseout'ing from a zeroclipboard button
-          if (line[0][0]) {
-            var id = line.attr('id');
-            var el = d3.select('#' + id)[0][0];
+              if (line.attr('class') === 'circle') {
+                line.attr('r', 7);
+              } else {
+                line.attr('class', line.attr('class') + " line-hover");
+              }
+
+              // Sort the lines so the current line is "above" the non-hovered lines
+              $('#' + id + ', .circle-' + id).each(function() {
+                this.parentNode.appendChild(this);
+              });
+            }
+          },
+          mouseout: function () {
+            $(this).removeClass('highlight');
+
+            var alt_name = $(this).attr('class');
+            if (!alt_name) return;
+
+            var line = d3.select('#' + alt_name);
 
             if (line.attr('class') === 'circle') {
-              line.attr('r', 7);
+              line.attr('r', 5);
             } else {
-              line.attr('class', line.attr('class') + " line-hover");
+              line.attr('class', 'line');
             }
-
-            // Sort the lines so the current line is "above" the non-hovered lines
-            $('#' + id + ', .circle-' + id).each(function() {
-              this.parentNode.appendChild(this);
-            });
           }
-        },
-        mouseout: function () {
-          $(this).removeClass('highlight');
+        });
 
-          var alt_name = $(this).attr('class');
-          if (!alt_name) return;
+        var chart = new Chart(my.name, data);
+        chart.draw();
+        my.callback();
 
-          var line = d3.select('#' + alt_name);
-
-          if (line.attr('class') === 'circle') {
-            line.attr('r', 5);
-          } else {
-            line.attr('class', 'line');
+        // Responsive charts
+        var size = $('.chart-container').width();
+        $(window).on('resize', function() {
+          var newSize = $('.chart-container').width();
+          if (newSize !== size) {
+            size = newSize;
+            chart.remove();
+            chart.draw();
           }
+        });
+
+        var refresh = getParameterByName('refresh');
+        if (refresh) {
+          setTimeout(function() {
+            my.render();
+          }, 1000 * refresh);
         }
       });
+    }
 
-      var chart = new Chart(my.name, data);
-      chart.draw();
-      my.callback();
-
-      // Responsive charts
-      var size = $('.chart-container').width();
-      $(window).on('resize', function() {
-        var newSize = $('.chart-container').width();
-        if (newSize !== size) {
-          size = newSize;
-          chart.remove();
-          chart.draw();
-        }
-      });
-    });
+    my.render();
 
     my.renderBoxplots = function(data) {
 
